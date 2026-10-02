@@ -77,13 +77,18 @@ h1 em { font-style:normal; color:#a8a8a8; }
 .section-heading .eyebrow { margin-bottom:9px; }
 .section-heading h2 { margin:0; font-size:28px; letter-spacing:-1px; }
 .clips-count { letter-spacing:0; }
-.clip-actions { display:flex; align-items:center; gap:9px; }
+.clip-actions { display:flex; align-items:center; gap:9px; flex-wrap:wrap; justify-content:flex-end; }
 .export-all-button { border:1px solid #3a3a3a; background:#1d1d1d; color:#f4f1ea; border-radius:8px; padding:9px 11px; font-size:11px; font-weight:700; cursor:pointer; }
-.export-all-button:disabled { opacity:.5; }
+.export-all-button:disabled,.add-clip-button:disabled,.remove-clip-button:disabled { opacity:.5; cursor:not-allowed; }
+.add-clip-button { border:1px solid #3a3a3a; background:transparent; color:#ddd; border-radius:8px; padding:9px 11px; font-size:11px; font-weight:700; cursor:pointer; }
+.empty-clips-message { border:1px dashed #333; border-radius:12px; padding:18px; color:#858585; font-size:12px; line-height:1.6; }
 .clip-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
 .clip-card { min-width:0; border:1px solid #292929; border-radius:14px; background:#101010; padding:14px; transition:border-color .18s ease, background .18s ease; }
 .clip-card.selected { border-color:#777; background:#131313; }
+.clip-card-heading { display:flex; align-items:center; gap:7px; }
 .clip-select { display:flex; width:100%; align-items:center; text-align:left; gap:10px; padding:0; border:0; background:transparent; color:#f4f1ea; cursor:pointer; }
+.clip-card-heading .clip-select { flex:1; min-width:0; }
+.remove-clip-button { flex:none; width:30px; height:30px; border:1px solid #303030; border-radius:8px; background:transparent; color:#999; font-size:19px; line-height:1; cursor:pointer; }
 .clip-play { display:grid; place-items:center; flex:none; width:36px; height:36px; border-radius:10px; background:#202020; font-size:12px; }
 .clip-select > span:nth-child(2) { display:flex; min-width:0; flex:1; flex-direction:column; gap:6px; }
 .clip-select strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }

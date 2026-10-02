@@ -143,6 +143,41 @@ export default function DemoEditor() {
     loadFile(event.dataTransfer.files[0]);
   }
 
+  function addClip() {
+    const video = videoRef.current;
+    if (!video || duration < 1) {
+      setError("Wait for the video to load before adding a clip.");
+      return;
+    }
+
+    const clipLength = Math.min(15, Math.max(5, duration * 0.2), duration);
+    const start = Math.max(0, Math.min(video.currentTime, duration - clipLength));
+    const id = Math.max(0, ...clips.map((clip) => clip.id)) + 1;
+    const clip: Clip = {
+      id,
+      title: `Custom clip ${id}`,
+      start,
+      end: start + clipLength,
+      caption: "",
+      score: 0
+    };
+
+    setClips((current) => [...current, clip]);
+    setSelectedId(id);
+    setError("");
+    setNotice(
+      "Added a custom clip from the current preview position. Adjust its IN and OUT points before exporting."
+    );
+  }
+
+  function removeClip(clipId: number) {
+    const remainingClips = clips.filter((clip) => clip.id !== clipId);
+    setClips(remainingClips);
+    if (selectedId === clipId) {
+      setSelectedId(remainingClips[0]?.id ?? null);
+    }
+  }
+
   async function analyzeVideo() {
     const video = videoRef.current;
     if (!file || !Number.isFinite(duration) || duration <= 0) {
@@ -841,7 +876,7 @@ export default function DemoEditor() {
         </div>
       </section>
 
-      {clips.length > 0 && (
+      {sourceUrl && duration > 0 && (
         <section className="clips-section" aria-labelledby="clips-title">
           <div className="section-heading">
             <div>
@@ -855,179 +890,212 @@ export default function DemoEditor() {
               <button
                 className="export-all-button"
                 onClick={() => void exportAllClips()}
-                disabled={exportingId !== null || batchExportingIndex !== null || isAnalyzing}
+                disabled={
+                  clips.length === 0 ||
+                  exportingId !== null ||
+                  batchExportingIndex !== null ||
+                  isAnalyzing
+                }
               >
                 {batchExportingIndex !== null
                   ? `Exporting ${batchExportingIndex}/${clips.length}...`
                   : "Export all clips"}
               </button>
+              <button
+                className="add-clip-button"
+                onClick={addClip}
+                disabled={exportingId !== null || batchExportingIndex !== null || isAnalyzing}
+              >
+                Add custom clip
+              </button>
             </div>
           </div>
 
-          <div className="clip-list">
-            {clips.map((clip) => (
-              <article
-                className={`clip-card${clip.id === selectedId ? " selected" : ""}`}
-                key={clip.id}
-              >
-                <button
-                  className="clip-select"
-                  onClick={() => setSelectedId(clip.id)}
-                  disabled={exportingId !== null || batchExportingIndex !== null}
-                  aria-pressed={clip.id === selectedId}
-                  aria-label={`Preview ${clip.title}`}
+          {clips.length > 0 ? (
+            <div className="clip-list">
+              {clips.map((clip) => (
+                <article
+                  className={`clip-card${clip.id === selectedId ? " selected" : ""}`}
+                  key={clip.id}
                 >
-                  <span className="clip-play" aria-hidden="true">
-                    ▶
-                  </span>
-                  <span>
-                    <strong>{clip.title}</strong>
-                    <small>
-                      {formatTime(clip.start)} – {formatTime(clip.end)}
-                    </small>
-                  </span>
-                  <span className="score">
-                    {clip.score ? `${clip.score}% motion` : "low motion"}
-                  </span>
-                </button>
-                <div className="clip-timing">
-                  <label>
-                    Start
-                    <input
-                      type="number"
-                      min={0}
-                      max={Math.max(0, clip.end - 1)}
-                      step={0.1}
-                      value={clip.start.toFixed(1)}
+                  <div className="clip-card-heading">
+                    <button
+                      className="clip-select"
+                      onClick={() => setSelectedId(clip.id)}
                       disabled={exportingId !== null || batchExportingIndex !== null}
-                      aria-label={`${clip.title} start time in seconds`}
+                      aria-pressed={clip.id === selectedId}
+                      aria-label={`Preview ${clip.title}`}
+                    >
+                      <span className="clip-play" aria-hidden="true">
+                        ▶
+                      </span>
+                      <span>
+                        <strong>{clip.title}</strong>
+                        <small>
+                          {formatTime(clip.start)} – {formatTime(clip.end)}
+                        </small>
+                      </span>
+                      <span className="score">
+                        {clip.score
+                          ? `${clip.score}% motion`
+                          : clip.title.startsWith("Custom clip")
+                            ? "custom"
+                            : "low motion"}
+                      </span>
+                    </button>
+                    <button
+                      className="remove-clip-button"
+                      onClick={() => removeClip(clip.id)}
+                      disabled={exportingId !== null || batchExportingIndex !== null || isAnalyzing}
+                      aria-label={`Remove ${clip.title}`}
+                      title={`Remove ${clip.title}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="clip-timing">
+                    <label>
+                      Start
+                      <input
+                        type="number"
+                        min={0}
+                        max={Math.max(0, clip.end - 1)}
+                        step={0.1}
+                        value={clip.start.toFixed(1)}
+                        disabled={exportingId !== null || batchExportingIndex !== null}
+                        aria-label={`${clip.title} start time in seconds`}
+                        onFocus={() => setSelectedId(clip.id)}
+                        onChange={(event) => {
+                          const value = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
+                          setClips((current) =>
+                            current.map((item) =>
+                              item.id === clip.id
+                                ? {
+                                    ...item,
+                                    start: Math.max(0, Math.min(value, item.end - 1))
+                                  }
+                                : item
+                            )
+                          );
+                        }}
+                      />
+                      <span className="timing-suffix">sec</span>
+                    </label>
+                    <label>
+                      End
+                      <input
+                        type="number"
+                        min={clip.start + 1}
+                        max={duration}
+                        step={0.1}
+                        value={clip.end.toFixed(1)}
+                        disabled={exportingId !== null || batchExportingIndex !== null}
+                        aria-label={`${clip.title} end time in seconds`}
+                        onFocus={() => setSelectedId(clip.id)}
+                        onChange={(event) => {
+                          const value = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
+                          setClips((current) =>
+                            current.map((item) =>
+                              item.id === clip.id
+                                ? {
+                                    ...item,
+                                    end: Math.min(duration, Math.max(value, item.start + 1))
+                                  }
+                                : item
+                            )
+                          );
+                        }}
+                      />
+                      <span className="timing-suffix">sec</span>
+                    </label>
+                  </div>
+                  <div className="trim-sliders">
+                    <label>
+                      <span>IN</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={Math.max(0, clip.end - 1)}
+                        step={0.1}
+                        value={clip.start}
+                        disabled={exportingId !== null || batchExportingIndex !== null}
+                        aria-label={`${clip.title} trim start`}
+                        onFocus={() => setSelectedId(clip.id)}
+                        onChange={(event) => {
+                          const value = Number(event.target.value);
+                          setClips((current) =>
+                            current.map((item) =>
+                              item.id === clip.id
+                                ? { ...item, start: Math.min(value, item.end - 1) }
+                                : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+                    <label>
+                      <span>OUT</span>
+                      <input
+                        type="range"
+                        min={Math.min(duration, clip.start + 1)}
+                        max={duration}
+                        step={0.1}
+                        value={clip.end}
+                        disabled={exportingId !== null || batchExportingIndex !== null}
+                        aria-label={`${clip.title} trim end`}
+                        onFocus={() => setSelectedId(clip.id)}
+                        onChange={(event) => {
+                          const value = Number(event.target.value);
+                          setClips((current) =>
+                            current.map((item) =>
+                              item.id === clip.id
+                                ? { ...item, end: Math.max(value, item.start + 1) }
+                                : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <label className="caption-field">
+                    <span>Caption example</span>
+                    <input
+                      value={clip.caption}
+                      maxLength={120}
+                      disabled={exportingId !== null || batchExportingIndex !== null}
                       onFocus={() => setSelectedId(clip.id)}
                       onChange={(event) => {
-                        const value = event.currentTarget.valueAsNumber;
-                        if (!Number.isFinite(value)) return;
+                        setSelectedId(clip.id);
                         setClips((current) =>
                           current.map((item) =>
-                            item.id === clip.id
-                              ? {
-                                  ...item,
-                                  start: Math.max(0, Math.min(value, item.end - 1))
-                                }
-                              : item
+                            item.id === clip.id ? { ...item, caption: event.target.value } : item
                           )
                         );
                       }}
                     />
-                    <span className="timing-suffix">sec</span>
                   </label>
-                  <label>
-                    End
-                    <input
-                      type="number"
-                      min={clip.start + 1}
-                      max={duration}
-                      step={0.1}
-                      value={clip.end.toFixed(1)}
-                      disabled={exportingId !== null || batchExportingIndex !== null}
-                      aria-label={`${clip.title} end time in seconds`}
-                      onFocus={() => setSelectedId(clip.id)}
-                      onChange={(event) => {
-                        const value = event.currentTarget.valueAsNumber;
-                        if (!Number.isFinite(value)) return;
-                        setClips((current) =>
-                          current.map((item) =>
-                            item.id === clip.id
-                              ? {
-                                  ...item,
-                                  end: Math.min(duration, Math.max(value, item.start + 1))
-                                }
-                              : item
-                          )
-                        );
-                      }}
-                    />
-                    <span className="timing-suffix">sec</span>
-                  </label>
-                </div>
-                <div className="trim-sliders">
-                  <label>
-                    <span>IN</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={Math.max(0, clip.end - 1)}
-                      step={0.1}
-                      value={clip.start}
-                      disabled={exportingId !== null || batchExportingIndex !== null}
-                      aria-label={`${clip.title} trim start`}
-                      onFocus={() => setSelectedId(clip.id)}
-                      onChange={(event) => {
-                        const value = Number(event.target.value);
-                        setClips((current) =>
-                          current.map((item) =>
-                            item.id === clip.id
-                              ? { ...item, start: Math.min(value, item.end - 1) }
-                              : item
-                          )
-                        );
-                      }}
-                    />
-                  </label>
-                  <label>
-                    <span>OUT</span>
-                    <input
-                      type="range"
-                      min={Math.min(duration, clip.start + 1)}
-                      max={duration}
-                      step={0.1}
-                      value={clip.end}
-                      disabled={exportingId !== null || batchExportingIndex !== null}
-                      aria-label={`${clip.title} trim end`}
-                      onFocus={() => setSelectedId(clip.id)}
-                      onChange={(event) => {
-                        const value = Number(event.target.value);
-                        setClips((current) =>
-                          current.map((item) =>
-                            item.id === clip.id
-                              ? { ...item, end: Math.max(value, item.start + 1) }
-                              : item
-                          )
-                        );
-                      }}
-                    />
-                  </label>
-                </div>
-                <label className="caption-field">
-                  <span>Caption example</span>
-                  <input
-                    value={clip.caption}
-                    maxLength={120}
-                    disabled={exportingId !== null || batchExportingIndex !== null}
-                    onFocus={() => setSelectedId(clip.id)}
-                    onChange={(event) => {
-                      setSelectedId(clip.id);
-                      setClips((current) =>
-                        current.map((item) =>
-                          item.id === clip.id ? { ...item, caption: event.target.value } : item
-                        )
-                      );
-                    }}
-                  />
-                </label>
-                <button
-                  className="export-button"
-                  onClick={() => void exportClip(clip)}
-                  disabled={
-                    exportingId !== null || batchExportingIndex !== null || isAnalyzing
-                  }
-                >
-                  {exportingId === clip.id ? "Rendering..." : "Export WebM"}
-                </button>
-              </article>
-            ))}
-          </div>
+                  <button
+                    className="export-button"
+                    onClick={() => void exportClip(clip)}
+                    disabled={
+                      exportingId !== null || batchExportingIndex !== null || isAnalyzing
+                    }
+                  >
+                    {exportingId === clip.id ? "Rendering..." : "Export WebM"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-clips-message">
+              No clip suggestions yet. Analyze the video or add a custom clip from the current preview position.
+            </p>
+          )}
           <p className="export-note">
-            Exports are center-cropped, captioned WebM videos. For batch downloads, allow multiple
-            downloads if your browser asks, and keep this tab open while rendering.
+            Exports use your selected framing and caption settings. For batch downloads, allow
+            multiple downloads if your browser asks, and keep this tab open while rendering.
           </p>
         </section>
       )}

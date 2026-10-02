@@ -36,6 +36,8 @@ The published GitHub Pages app includes a local-only video editing demo:
   or trim sliders.
 - Set a 9:16, 4:5, 1:1, or 16:9 output, choose fill/fit and crop focus, style
   the example caption, then export one clip or batch export all suggestions.
+- Add a custom clip from the current preview position, adjust its trim points,
+  or remove clips you do not want to keep.
 
 The demo does not upload files, transcribe speech, understand the scene, or use
 AI. Clip suggestions are based on visual motion between sampled frames, not
