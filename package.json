@@ -1,0 +1,12 @@
+{
+  "name": "tarmat-ai",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npm --prefix apps/web run dev",
+    "build": "npm --prefix apps/web run build",
+    "lint": "npm --prefix apps/web run lint"
+  },
+  "workspaces": ["apps/*", "packages/*"]
+}

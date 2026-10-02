@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tarmat
+    ports:
+      - "5432:5432"
+    volumes:
+      - tarmat_pg:/var/lib/postgresql/data
+
+volumes:
+  tarmat_pg:
