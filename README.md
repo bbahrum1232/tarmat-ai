@@ -38,6 +38,8 @@ The published GitHub Pages app includes a local-only video editing demo:
   the example caption, then export one clip or batch export all suggestions.
 - Add a custom clip from the current preview position, adjust its trim points,
   or remove clips you do not want to keep.
+- Follow the quick-start guide, apply a one-click platform preset, and preview
+  the selected clip before exporting.
 
 The demo does not upload files, transcribe speech, understand the scene, or use
 AI. Clip suggestions are based on visual motion between sampled frames, not

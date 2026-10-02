@@ -22,6 +22,13 @@ type AspectRatio = keyof typeof aspectRatios;
 type CropMode = "cover" | "contain";
 type CaptionPosition = "top" | "center" | "bottom";
 
+const platformPresets: Array<{ label: string; detail: string; ratio: AspectRatio }> = [
+  { label: "TikTok · Reels · Shorts", detail: "Vertical 9:16", ratio: "9:16" },
+  { label: "Instagram feed", detail: "Portrait 4:5", ratio: "4:5" },
+  { label: "Square post", detail: "Square 1:1", ratio: "1:1" },
+  { label: "YouTube", detail: "Landscape 16:9", ratio: "16:9" }
+];
+
 const demoCaptions = [
   "A moment worth sharing.",
   "This is the part you don't want to miss.",
@@ -75,6 +82,7 @@ export default function DemoEditor() {
   const [captionBackground, setCaptionBackground] = useState(true);
   const [clips, setClips] = useState<Clip[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [isPreviewingClip, setIsPreviewingClip] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [exportingId, setExportingId] = useState<number | null>(null);
@@ -175,6 +183,49 @@ export default function DemoEditor() {
     setClips(remainingClips);
     if (selectedId === clipId) {
       setSelectedId(remainingClips[0]?.id ?? null);
+    }
+  }
+
+  function applyPlatformPreset(ratio: AspectRatio) {
+    setAspectRatio(ratio);
+    setCropMode("cover");
+    setFocusX(50);
+    setFocusY(50);
+    setCaptionPosition("bottom");
+    setCaptionScale(1);
+    setCaptionBackground(true);
+    setNotice(
+      `Export setup is ready for ${
+        platformPresets.find((preset) => preset.ratio === ratio)?.label ?? ratio
+      }.`
+    );
+  }
+
+  async function toggleClipPreview() {
+    const video = videoRef.current;
+    if (!video || !selectedClip) return;
+
+    if (!video.paused) {
+      video.pause();
+      video.currentTime = selectedClip.start;
+      return;
+    }
+
+    setError("");
+    try {
+      if (
+        video.currentTime < selectedClip.start ||
+        video.currentTime >= selectedClip.end
+      ) {
+        await seekTo(video, selectedClip.start);
+      }
+      await video.play();
+    } catch (previewError) {
+      setError(
+        previewError instanceof Error
+          ? previewError.message
+          : "The selected clip could not be played in the preview."
+      );
     }
   }
 
@@ -582,6 +633,43 @@ export default function DemoEditor() {
         </div>
       </section>
 
+      <section className="beginner-guide" aria-label="Quick start guide">
+        <div className="beginner-guide-heading">
+          <span className="eyebrow">NEW TO CLIPPING?</span>
+          <strong>Follow these four steps</strong>
+        </div>
+        <ol>
+          <li>
+            <span>1</span>
+            <div>
+              <strong>Choose a video</strong>
+              <small>Pick a file from your device.</small>
+            </div>
+          </li>
+          <li>
+            <span>2</span>
+            <div>
+              <strong>Find moments</strong>
+              <small>Let the demo suggest active sections.</small>
+            </div>
+          </li>
+          <li>
+            <span>3</span>
+            <div>
+              <strong>Preview and adjust</strong>
+              <small>Choose a moment and trim its start/end.</small>
+            </div>
+          </li>
+          <li>
+            <span>4</span>
+            <div>
+              <strong>Choose a platform and export</strong>
+              <small>Video stays on this device.</small>
+            </div>
+          </li>
+        </ol>
+      </section>
+
       <section className="editor" id="editor">
         <div className="panel source-panel">
           <div className="panel-heading">
@@ -750,6 +838,8 @@ export default function DemoEditor() {
                     video.currentTime = selectedClip.start;
                   }
                 }}
+                onPlay={() => setIsPreviewingClip(true)}
+                onPause={() => setIsPreviewingClip(false)}
                 controls={exportingId === null}
                 playsInline
               />
@@ -782,8 +872,40 @@ export default function DemoEditor() {
                 ? "Choose “Find clip moments” to start"
                 : "Waiting for a video"}
           </div>
+          {sourceUrl && (
+            <button
+              className="preview-clip-button"
+              onClick={() => void toggleClipPreview()}
+              disabled={
+                !selectedClip ||
+                isAnalyzing ||
+                exportingId !== null ||
+                batchExportingIndex !== null
+              }
+            >
+              {isPreviewingClip ? "Pause clip preview" : "Preview selected clip"}
+            </button>
+          )}
           <div className="output-settings">
             <div className="settings-heading">Export settings</div>
+            <div className="platform-presets" aria-label="Platform export presets">
+              <span className="platform-presets-label">Quick setup for a platform</span>
+              <div className="platform-presets-grid">
+                {platformPresets.map((preset) => (
+                  <button
+                    key={preset.ratio}
+                    type="button"
+                    className="platform-preset"
+                    aria-pressed={aspectRatio === preset.ratio}
+                    disabled={exportingId !== null || batchExportingIndex !== null}
+                    onClick={() => applyPlatformPreset(preset.ratio)}
+                  >
+                    <strong>{preset.label}</strong>
+                    <small>{preset.detail}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
             <label className="setting-field">
               <span>Aspect ratio</span>
               <select
