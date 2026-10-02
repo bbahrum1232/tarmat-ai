@@ -11,6 +11,17 @@ type Clip = {
   score: number;
 };
 
+const aspectRatios = {
+  "9:16": { width: 720, height: 1280, description: "Shorts · Reels · TikTok" },
+  "4:5": { width: 864, height: 1080, description: "Instagram feed" },
+  "1:1": { width: 1080, height: 1080, description: "Square posts" },
+  "16:9": { width: 1280, height: 720, description: "Landscape video" }
+} as const;
+
+type AspectRatio = keyof typeof aspectRatios;
+type CropMode = "cover" | "contain";
+type CaptionPosition = "top" | "center" | "bottom";
+
 const demoCaptions = [
   "A moment worth sharing.",
   "This is the part you don't want to miss.",
@@ -55,6 +66,13 @@ export default function DemoEditor() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [duration, setDuration] = useState(0);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
+  const [cropMode, setCropMode] = useState<CropMode>("cover");
+  const [focusX, setFocusX] = useState(50);
+  const [focusY, setFocusY] = useState(50);
+  const [captionPosition, setCaptionPosition] = useState<CaptionPosition>("bottom");
+  const [captionScale, setCaptionScale] = useState(1);
+  const [captionBackground, setCaptionBackground] = useState(true);
   const [clips, setClips] = useState<Clip[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -288,6 +306,7 @@ export default function DemoEditor() {
     let recorder: MediaRecorder | null = null;
     let canvasStream: MediaStream | null = null;
     let animationFrame = 0;
+    let handleRecordingVideoEvent: (() => void) | null = null;
 
     try {
       const AudioContextConstructor = window.AudioContext;
@@ -305,8 +324,9 @@ export default function DemoEditor() {
       await audioContext.resume();
 
       const canvas = document.createElement("canvas");
-      canvas.width = 720;
-      canvas.height = 1280;
+      const output = aspectRatios[aspectRatio];
+      canvas.width = output.width;
+      canvas.height = output.height;
       const context =
         canvas.getContext("2d") ??
         (() => {
@@ -329,6 +349,18 @@ export default function DemoEditor() {
       const chunks: BlobPart[] = [];
       recorder = new MediaRecorder(canvasStream, { mimeType });
       const activeRecorder = recorder;
+      const stopRecording = () => {
+        activeVideo.pause();
+        if (activeRecorder.state === "recording") activeRecorder.stop();
+      };
+      handleRecordingVideoEvent = () => {
+        drawFrame(false);
+        if (activeVideo.currentTime >= clip.end || activeVideo.ended) {
+          stopRecording();
+        }
+      };
+      activeVideo.addEventListener("timeupdate", handleRecordingVideoEvent);
+      activeVideo.addEventListener("ended", handleRecordingVideoEvent);
       const recordingFinished = new Promise<Blob>((resolve, reject) => {
         activeRecorder.ondataavailable = (event) => {
           if (event.data.size > 0) chunks.push(event.data);
@@ -337,34 +369,39 @@ export default function DemoEditor() {
         activeRecorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
       });
 
-      function drawFrame() {
+      function drawFrame(scheduleNextFrame = true) {
         if (
           activeVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
           activeVideo.videoWidth > 0 &&
           activeVideo.videoHeight > 0
         ) {
-          const scale = Math.max(
-            canvas.width / activeVideo.videoWidth,
-            canvas.height / activeVideo.videoHeight
-          );
+          context.fillStyle = "#000000";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          const scale =
+            (cropMode === "cover" ? Math.max : Math.min)(
+              canvas.width / activeVideo.videoWidth,
+              canvas.height / activeVideo.videoHeight
+            );
           const width = activeVideo.videoWidth * scale;
           const height = activeVideo.videoHeight * scale;
           context.drawImage(
             activeVideo,
-            (canvas.width - width) / 2,
-            (canvas.height - height) / 2,
+            cropMode === "cover" ? (canvas.width - width) * (focusX / 100) : (canvas.width - width) / 2,
+            cropMode === "cover" ? (canvas.height - height) * (focusY / 100) : (canvas.height - height) / 2,
             width,
             height
           );
 
-          const captionLines = clip.caption.trim().split(/\s+/);
+          const captionText = clip.caption.trim();
+          const captionLines = captionText ? captionText.split(/\s+/) : [];
           context.textAlign = "center";
           context.textBaseline = "middle";
-          context.font = "700 46px Arial, sans-serif";
-          context.lineWidth = 8;
-          context.strokeStyle = "rgba(0, 0, 0, 0.85)";
+          const fontSize = Math.round(canvas.width * 0.064 * captionScale);
+          context.font = `700 ${fontSize}px Arial, sans-serif`;
+          context.lineWidth = Math.max(5, Math.round(fontSize * 0.16));
+          context.strokeStyle = "#000000";
           context.fillStyle = "#ffffff";
-          const maxLineWidth = canvas.width - 100;
+          const maxLineWidth = canvas.width * 0.86;
           const lines: string[] = [];
           let line = "";
           for (const word of captionLines) {
@@ -377,39 +414,57 @@ export default function DemoEditor() {
             }
           }
           if (line) lines.push(line);
-          const visibleLines = lines.slice(0, 3);
-          const lineHeight = 58;
-          const firstLineY = canvas.height - 190 - ((visibleLines.length - 1) * lineHeight) / 2;
+          const visibleLines = lines.slice(0, 4);
+          const lineHeight = Math.round(fontSize * 1.22);
+          const blockHeight = visibleLines.length * lineHeight;
+          const firstLineY =
+            captionPosition === "top"
+              ? canvas.height * 0.14 + lineHeight / 2
+              : captionPosition === "center"
+                ? (canvas.height - blockHeight) / 2 + lineHeight / 2
+                : canvas.height * 0.84 - blockHeight / 2 + lineHeight / 2;
           visibleLines.forEach((captionLine, index) => {
             const y = firstLineY + index * lineHeight;
+            if (captionBackground) {
+              const lineWidth = Math.min(context.measureText(captionLine).width, maxLineWidth);
+              context.fillStyle = "rgba(0, 0, 0, 0.62)";
+              context.fillRect(
+                canvas.width / 2 - lineWidth / 2 - fontSize * 0.16,
+                y - lineHeight * 0.42,
+                lineWidth + fontSize * 0.32,
+                lineHeight * 0.84
+              );
+            }
+            context.fillStyle = "#ffffff";
             context.strokeText(captionLine, canvas.width / 2, y, maxLineWidth);
             context.fillText(captionLine, canvas.width / 2, y, maxLineWidth);
           });
         }
 
         if (activeVideo.currentTime >= clip.end || activeVideo.ended) {
-          activeVideo.pause();
-          if (activeRecorder.state === "recording") activeRecorder.stop();
+          stopRecording();
           return;
         }
-        animationFrame = window.requestAnimationFrame(drawFrame);
+        if (scheduleNextFrame) {
+          animationFrame = window.requestAnimationFrame(() => drawFrame());
+        }
       }
 
       recorder.start(250);
       await activeVideo.play();
-      animationFrame = window.requestAnimationFrame(drawFrame);
+      animationFrame = window.requestAnimationFrame(() => drawFrame());
       const blob = await recordingFinished;
       if (blob.size === 0) throw new Error("The exported video was empty. Please try again.");
 
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;
-      link.download = `tarmat-clip-${clip.id}.webm`;
+      link.download = `tarmat-clip-${clip.id}-${aspectRatio.replace(":", "x")}.webm`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 60_000);
-      setNotice("Your vertical clip was exported as a WebM file.");
+      setNotice(`Your ${aspectRatio} WebM clip was exported.`);
       return true;
     } catch (exportError) {
       const message =
@@ -417,6 +472,10 @@ export default function DemoEditor() {
       setError(message);
       return false;
     } finally {
+      if (handleRecordingVideoEvent) {
+        activeVideo.removeEventListener("timeupdate", handleRecordingVideoEvent);
+        activeVideo.removeEventListener("ended", handleRecordingVideoEvent);
+      }
       window.cancelAnimationFrame(animationFrame);
       activeVideo.pause();
       if (recorder?.state === "recording") recorder.stop();
@@ -448,9 +507,9 @@ export default function DemoEditor() {
 
   const features = [
     ["01", "Motion-based suggestions", "Find visually active sections of your video."],
-    ["02", "Vertical 9:16 crop", "Frame the center of your video for short-form platforms."],
-    ["03", "Editable demo captions", "Change the sample caption before exporting."],
-    ["04", "Local WebM export", "Download a rendered clip directly from your browser."]
+    ["02", "Platform-ready formats", "Export vertical, portrait, square, or landscape."],
+    ["03", "Fine-tuned framing", "Adjust the crop, clip timing, and caption style."],
+    ["04", "Local WebM export", "Render clips in your browser without uploading."]
   ];
 
   return (
@@ -606,18 +665,35 @@ export default function DemoEditor() {
         <div className="panel preview-panel">
           <div className="panel-heading">
             <div>
-              <div className="panel-title">Vertical preview</div>
-              <p className="panel-subtitle">9:16 center crop · captions burned into export</p>
+              <div className="panel-title">{aspectRatio} preview</div>
+              <p className="panel-subtitle">
+                {cropMode === "cover" ? "Fill frame" : "Show full frame"} · caption preview
+              </p>
             </div>
-            {selectedClip && <span className="format-pill">9:16</span>}
+            <span className="format-pill">{aspectRatio}</span>
           </div>
 
-          <div className={`phone${sourceUrl ? " has-video" : ""}`}>
-            {sourceUrl ? (
-              <video
-                ref={videoRef}
-                className="source-video"
-                src={sourceUrl}
+          <div
+          className={`phone${sourceUrl ? " has-video" : ""}`}
+          style={{
+            aspectRatio: `${aspectRatios[aspectRatio].width} / ${aspectRatios[aspectRatio].height}`,
+            width:
+              aspectRatio === "16:9"
+                ? "min(100%, 360px)"
+                : aspectRatio === "1:1"
+                  ? "min(100%, 300px)"
+                  : "min(100%, 230px)"
+          }}
+          >
+          {sourceUrl ? (
+            <video
+              ref={videoRef}
+              className="source-video"
+              src={sourceUrl}
+              style={{
+                objectFit: cropMode,
+                objectPosition: `${focusX}% ${focusY}%`
+              }}
                 onLoadedMetadata={(event) => {
                   const videoDuration = event.currentTarget.duration;
                   if (Number.isFinite(videoDuration) && videoDuration > 0) {
@@ -630,7 +706,12 @@ export default function DemoEditor() {
                 onError={() => setError("This video format could not be played by your browser.")}
                 onTimeUpdate={(event) => {
                   const video = event.currentTarget;
-                  if (selectedClip && video.currentTime >= selectedClip.end && !video.paused) {
+                  if (
+                    exportingId === null &&
+                    selectedClip &&
+                    video.currentTime >= selectedClip.end &&
+                    !video.paused
+                  ) {
                     video.currentTime = selectedClip.start;
                   }
                 }}
@@ -650,7 +731,11 @@ export default function DemoEditor() {
               </div>
             )}
             {selectedClip && sourceUrl && (
-              <div className="preview-caption" aria-live="polite">
+              <div
+                className={`preview-caption caption-${captionPosition}${captionBackground ? " with-background" : ""}`}
+                style={{ fontSize: `${14 * captionScale}px` }}
+                aria-live="polite"
+              >
                 {selectedClip.caption || " "}
               </div>
             )}
@@ -661,6 +746,97 @@ export default function DemoEditor() {
               : file
                 ? "Choose “Find clip moments” to start"
                 : "Waiting for a video"}
+          </div>
+          <div className="output-settings">
+            <div className="settings-heading">Export settings</div>
+            <label className="setting-field">
+              <span>Aspect ratio</span>
+              <select
+                value={aspectRatio}
+                disabled={exportingId !== null || batchExportingIndex !== null}
+                onChange={(event) => setAspectRatio(event.target.value as AspectRatio)}
+              >
+                {Object.entries(aspectRatios).map(([ratio, preset]) => (
+                  <option key={ratio} value={ratio}>
+                    {ratio} · {preset.description}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="setting-field">
+              <span>Frame crop</span>
+              <select
+                value={cropMode}
+                disabled={exportingId !== null || batchExportingIndex !== null}
+                onChange={(event) => setCropMode(event.target.value as CropMode)}
+              >
+                <option value="cover">Fill frame · crop edges</option>
+                <option value="contain">Show full video · add bars</option>
+              </select>
+            </label>
+            {cropMode === "cover" && (
+              <div className="focus-controls">
+                <label>
+                  <span>Horizontal focus</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={focusX}
+                    disabled={exportingId !== null || batchExportingIndex !== null}
+                    onChange={(event) => setFocusX(Number(event.target.value))}
+                    aria-label="Horizontal crop focus"
+                  />
+                </label>
+                <label>
+                  <span>Vertical focus</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={focusY}
+                    disabled={exportingId !== null || batchExportingIndex !== null}
+                    onChange={(event) => setFocusY(Number(event.target.value))}
+                    aria-label="Vertical crop focus"
+                  />
+                </label>
+              </div>
+            )}
+            <div className="caption-settings">
+              <label className="setting-field">
+                <span>Caption position</span>
+                <select
+                  value={captionPosition}
+                  disabled={exportingId !== null || batchExportingIndex !== null}
+                  onChange={(event) => setCaptionPosition(event.target.value as CaptionPosition)}
+                >
+                  <option value="top">Top</option>
+                  <option value="center">Center</option>
+                  <option value="bottom">Bottom</option>
+                </select>
+              </label>
+              <label className="setting-field">
+                <span>Caption size</span>
+                <select
+                  value={captionScale}
+                  disabled={exportingId !== null || batchExportingIndex !== null}
+                  onChange={(event) => setCaptionScale(Number(event.target.value))}
+                >
+                  <option value={0.8}>Small</option>
+                  <option value={1}>Medium</option>
+                  <option value={1.2}>Large</option>
+                </select>
+              </label>
+            </div>
+            <label className="toggle-setting">
+              <input
+                type="checkbox"
+                checked={captionBackground}
+                disabled={exportingId !== null || batchExportingIndex !== null}
+                onChange={(event) => setCaptionBackground(event.target.checked)}
+              />
+              <span>Caption background</span>
+            </label>
           </div>
         </div>
       </section>
@@ -770,6 +946,54 @@ export default function DemoEditor() {
                       }}
                     />
                     <span className="timing-suffix">sec</span>
+                  </label>
+                </div>
+                <div className="trim-sliders">
+                  <label>
+                    <span>IN</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={Math.max(0, clip.end - 1)}
+                      step={0.1}
+                      value={clip.start}
+                      disabled={exportingId !== null || batchExportingIndex !== null}
+                      aria-label={`${clip.title} trim start`}
+                      onFocus={() => setSelectedId(clip.id)}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        setClips((current) =>
+                          current.map((item) =>
+                            item.id === clip.id
+                              ? { ...item, start: Math.min(value, item.end - 1) }
+                              : item
+                          )
+                        );
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>OUT</span>
+                    <input
+                      type="range"
+                      min={Math.min(duration, clip.start + 1)}
+                      max={duration}
+                      step={0.1}
+                      value={clip.end}
+                      disabled={exportingId !== null || batchExportingIndex !== null}
+                      aria-label={`${clip.title} trim end`}
+                      onFocus={() => setSelectedId(clip.id)}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        setClips((current) =>
+                          current.map((item) =>
+                            item.id === clip.id
+                              ? { ...item, end: Math.max(value, item.start + 1) }
+                              : item
+                          )
+                        );
+                      }}
+                    />
                   </label>
                 </div>
                 <label className="caption-field">
