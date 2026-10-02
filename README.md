@@ -31,12 +31,15 @@ Requirements: Node.js 20+, npm.
 ## Browser demo
 The published GitHub Pages app includes a local-only video editing demo:
 - Choose a local video or drag one into the editor.
-- Generate sample clip suggestions and select a segment to preview.
+- Analyze sampled video frames locally to find visually active sections, then
+  select a segment to preview and adjust its start/end times.
 - Customize its demo caption, export a vertical 9:16 WebM clip, or batch export
   all suggested clips.
 
-The demo does not upload files, transcribe speech, or use AI. Clip suggestions
-and captions are examples; exported clips are rendered in the browser and
-downloaded to your device. Export requires a browser with MediaRecorder and
-WebM support (for example, a current version of Chrome or Edge). A production
-AI workflow still needs a backend, transcription, and video-processing workers.
+The demo does not upload files, transcribe speech, understand the scene, or use
+AI. Clip suggestions are based on visual motion between sampled frames, not
+semantic highlight detection. Captions are editable examples, not generated
+subtitles. Exported clips are rendered in the browser and downloaded to your
+device. Export requires a browser with MediaRecorder and WebM support (for
+example, a current version of Chrome or Edge). A production AI workflow still
+needs a backend, transcription, and video-processing workers.

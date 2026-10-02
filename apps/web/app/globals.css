@@ -41,6 +41,8 @@ h1 em { font-style:normal; color:#a8a8a8; }
 .file-copy span { color:#777; font-size:11px; }
 .local-pill { color:#b5b5b5; font-size:9px; padding:6px 8px; white-space:nowrap; }
 .analyze-button { width:100%; margin-top:14px; }
+.analysis-progress { height:4px; background:#292929; border-radius:99px; overflow:hidden; margin-top:11px; }
+.analysis-progress span { display:block; height:100%; background:#d6d1c6; transition:width .12s ease; }
 .message { font-size:12px; line-height:1.5; margin:12px 0 0; }
 .error-message { color:#ffaaa5; }
 .notice-message { color:#c8c8c8; }
@@ -72,6 +74,10 @@ h1 em { font-style:normal; color:#a8a8a8; }
 .clip-select strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
 .clip-select small { color:#777; font-size:11px; }
 .score { color:#777; font-size:9px; white-space:nowrap; }
+.clip-timing { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:13px; }
+.clip-timing label { display:flex; align-items:center; gap:5px; color:#777; font-size:10px; }
+.clip-timing input { min-width:0; width:100%; background:#0b0b0b; color:#eee; border:1px solid #303030; border-radius:7px; padding:7px 6px; outline:none; font-size:11px; }
+.timing-suffix { color:#666; }
 .caption-field { display:block; margin-top:16px; }
 .caption-field span { display:block; color:#777; font-size:10px; margin-bottom:6px; }
 .caption-field input { width:100%; min-width:0; background:#0b0b0b; color:#eee; border:1px solid #303030; border-radius:8px; padding:9px 10px; outline:none; font-size:11px; }
