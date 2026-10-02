@@ -28,5 +28,15 @@ Requirements: Node.js 20+, npm.
     npm install
     npm run dev
 
-The initial UI is intentionally a scaffold. Video processing and AI workers
-will be added in subsequent milestones.
+## Browser demo
+The published GitHub Pages app includes a local-only video editing demo:
+- Choose a local video or drag one into the editor.
+- Generate sample clip suggestions and select a segment to preview.
+- Customize its demo caption, export a vertical 9:16 WebM clip, or batch export
+  all suggested clips.
+
+The demo does not upload files, transcribe speech, or use AI. Clip suggestions
+and captions are examples; exported clips are rendered in the browser and
+downloaded to your device. Export requires a browser with MediaRecorder and
+WebM support (for example, a current version of Chrome or Edge). A production
+AI workflow still needs a backend, transcription, and video-processing workers.
